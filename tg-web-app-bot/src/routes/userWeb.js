@@ -1,64 +1,80 @@
 const express = require('express');
+const User = require('../models/user'); // Убедитесь, что путь правильный
+
 const router = express.Router();
-const User = require('../models/userWeb');
 
-// Получение данных пользователя
-router.get('/:username', async (req, res) => {
+router.get('/top-donors', async (req, res) => {
+    console.log('Received request for top donors');
     try {
-        const user = await User.findOne({ username: req.params.username });
-        if (!user) {
-            return res.status(404).json({ msg: 'User not found' });
+        const topDonors = await User.find().sort({ donated: -1 }).limit(10);
+        res.json(topDonors);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Маршрут для получения данных пользователя по chatId
+router.get('/:chatId', async (req, res) => {
+    console.log(`Received request for chatId: ${req.params.chatId}`);
+    try {
+        const user = await User.findOne({ chatId: req.params.chatId });
+        if (user) {
+            console.log('User found:', user);
+            res.json(user);
+        } else {
+            console.log('User not found');
+            res.status(404).json({ error: 'User not found' });
         }
-        res.json(user);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-// Обновление данных пользователя
-router.put('/:username', async (req, res) => {
+// Маршрут для получения chatId пользователя из initData
+router.post('/', async (req, res) => {
     try {
-        const user = await User.findOneAndUpdate(
-            { username: req.params.username },
-            { $set: req.body },
-            { new: true }
-        );
-        res.json(user);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
+        const { initData } = req.body;
+        const userData = JSON.parse(initData);
+        const chatId = userData.id;
+
+        if (chatId) {
+            const user = await User.findOne({ chatId });
+            if (user) {
+                res.json({ chatId: user.chatId });
+            } else {
+                res.status(404).json({ error: 'User not found' });
+            }
+        } else {
+            res.status(400).json({ error: 'Invalid initData' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-// Создание начального пользователя
-router.post('/initialize', async (req, res) => {
+// Маршрут для получения данных о пожертвованиях пользователя по telegramUsername
+router.get('/donations/:username', async (req, res) => {
     try {
-        const newUser = new User({
-            username: req.body.username,
-            fullName: req.body.fullName,
-            bio: req.body.bio,
-            profileImage: req.body.profileImage,
-            descriptions: [],
-            xLink: '',
-            linkedIn: '',
-            companies: [],
-            price: 0,
-            balance: 0,
-            tasks: [
-                { name: 'Fill your profile', points: 50, completed: false },
-                { name: 'Respond to other users’ requests', points: 100, completed: false },
-                { name: 'Invite friends', points: 100, completed: false },
-                { name: 'Claim daily reward', points: 100, completed: false },
-                { name: 'Follow Epic Connect', points: 50, completed: false }
-            ]
-        });
-        const user = await newUser.save();
-        res.json(user);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
+        const { username } = req.params;
+        const user = await User.findOne({ username: username });
+
+        if (user) {
+            // Получаем всех пользователей, отсортированных по количеству пожертвований
+            const allUsers = await User.find().sort({ donated: -1 });
+
+            // Находим индекс текущего пользователя в отсортированном массиве (это и есть его ранг)
+            const rank = allUsers.findIndex(u => u.username === username) + 1;
+
+            res.json({ donated: user.donated, profilePhoto: user.profilePhoto, username: user.username, rank: rank });
+        } else {
+            res.status(404).send('User not found');
+        }
+    } catch (error) {
+        res.status(500).send(error);
     }
 });
+
 
 module.exports = router;

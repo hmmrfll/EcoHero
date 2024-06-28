@@ -1,12 +1,15 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const connectDB = require('./config/database');
 const userRoutes = require('./routes/userWeb');
+const cors = require('cors'); // Добавить пакет cors
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3002;
 
 connectDB();
 
+app.use(cors()); // Включить CORS для всех маршрутов
 app.use(express.json());
 
 // Маршруты пользователя

@@ -1,12 +1,15 @@
+const express = require('express');
 const mongoose = require('mongoose');
 const TelegramBot = require('node-telegram-bot-api');
 const crypto = require('crypto');
+const { createCanvas } = require('canvas');
 const User = require('./models/user'); // Подставьте свой путь к модели User
 
 mongoose.connect('mongodb://localhost:27017/EpicConnect', {
     useNewUrlParser: true,
     useUnifiedTopology: true
 });
+
 const db = mongoose.connection;
 
 db.on('error', console.error.bind(console, 'connection error:'));
@@ -16,12 +19,29 @@ db.once('open', () => {
 
 const token = "7284707153:AAH3AirgAvA-oB6xlsmoORd3x0DNjxZrNc4";
 const bot = new TelegramBot(token, { polling: true });
-const webAppUrl = "https://7f37-212-98-175-246.ngrok-free.app";
+const webAppUrl = "https://8e94-212-98-175-54.ngrok-free.app";
 const communityAppUrl = "https://t.me/pisarevich";
 
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
+    const username = msg.from.username || msg.from.first_name || msg.from.last_name || 'User';
     const text = msg.text;
+
+    let profilePhoto = '';
+
+    try {
+        const userProfile = await bot.getUserProfilePhotos(msg.from.id);
+        if (userProfile.photos.length > 0) {
+            const fileId = userProfile.photos[0][0].file_id;
+            const file = await bot.getFile(fileId);
+            profilePhoto = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+        } else {
+            profilePhoto = createProfileImage(username.charAt(0).toUpperCase());
+        }
+    } catch (error) {
+        console.error('Error fetching user profile photo:', error);
+        profilePhoto = createProfileImage(username.charAt(0).toUpperCase());
+    }
 
     if (text.startsWith("/start")) {
         const refCodeMatch = text.match(/\/start (.+)/);
@@ -31,13 +51,17 @@ bot.on('message', async (msg) => {
 
         if (!user) {
             const referralCode = generateReferralCode();
-            console.log(`Referral link user ${chatId}: https://t.me/EpicConnectFatherBot?start=ref_${referralCode}`);
 
             const newUser = new User({
                 chatId,
+                username,
+                profilePhoto,
                 referralCode,
                 referrerChatId: null,
-                referralId: null  // Инициализируем referralId как null по умолчанию
+                referralId: null, // Инициализируем referralId как null по умолчанию
+                balance: 0,       // Инициализируем баланс
+                donated: 0,       // Инициализируем пожертвованные средства
+                echaCoins: 0      // Инициализируем монеты ECHA
             });
 
             if (referrerReferralCode) {
@@ -45,10 +69,8 @@ bot.on('message', async (msg) => {
 
                 if (referrer && referrer.chatId !== chatId) {
                     newUser.referrerChatId = referrer.chatId;
-                    newUser.referralId = referrer._id;  // Устанавливаем referralId
-                    await bot.sendMessage(referrer.chatId, `Finally! @${msg.from.username} joined your Web3 hub on EPIC!`);
-                } else {
-                    console.log('User attempted self-referral or invalid referral code');
+                    newUser.referralId = referrer._id; // Устанавливаем referralId
+                    await bot.sendMessage(referrer.chatId, `Finally! @${username} joined your Web3 hub on EPIC!`);
                 }
             }
 
@@ -59,10 +81,8 @@ bot.on('message', async (msg) => {
             if (referrer && referrer.chatId !== chatId) {
                 user.referrerChatId = referrer.chatId;
                 user.referralId = referrer._id;
-                await bot.sendMessage(referrer.chatId, `Finally! @${msg.from.username} joined your Web3 hub on EPIC!`);
+                await bot.sendMessage(referrer.chatId, `Finally! @${username} joined your Web3 hub on EPIC!`);
                 user = await user.save();
-            } else {
-                console.log('User attempted self-referral or invalid referral code');
             }
         }
 
@@ -87,9 +107,7 @@ bot.on('message', async (msg) => {
                 }
             };
 
-        let username = msg.from.username ? `@${msg.from.username}` : '';
-
-        await bot.sendMessage(chatId, `Hey ${username}! ${invitationMessage}`, replyMarkup);
+        await bot.sendMessage(chatId, `Hey @${username}! ${invitationMessage}`, replyMarkup);
     }
 });
 
@@ -97,3 +115,20 @@ function generateReferralCode() {
     return crypto.randomBytes(4).toString('hex');
 }
 
+function createProfileImage(letter) {
+    const canvas = createCanvas(100, 100);
+    const ctx = canvas.getContext('2d');
+
+    // Background color
+    ctx.fillStyle = '#4c657d';
+    ctx.fillRect(0, 0, 100, 100);
+
+    // Text
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 50px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(letter, 50, 50);
+
+    return canvas.toDataURL();
+}
