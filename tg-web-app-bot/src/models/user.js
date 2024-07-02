@@ -8,7 +8,9 @@ const userSchema = new mongoose.Schema({
     referrerChatId: Number,
     balance: { type: Number, default: 0 },
     donated: { type: Number, default: 0 },
-    echaCoins: { type: Number, default: 0 }
+    echaCoins: { type: Number, default: 0 },
+    farmingStartTime: { type: Date },
+    referrals: [{ type: String }]
 });
 
 const User = mongoose.model('User', userSchema);

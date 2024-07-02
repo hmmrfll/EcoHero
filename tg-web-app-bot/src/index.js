@@ -19,8 +19,8 @@ db.once('open', () => {
 
 const token = "7284707153:AAH3AirgAvA-oB6xlsmoORd3x0DNjxZrNc4";
 const bot = new TelegramBot(token, { polling: true });
-const webAppUrl = "https://8e94-212-98-175-54.ngrok-free.app";
-const communityAppUrl = "https://t.me/pisarevich";
+const webAppUrl = "https://eb13-178-163-182-4.ngrok-free.app";
+const communityAppUrl = "https://t.me/fondlesnikov";
 
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
@@ -58,10 +58,11 @@ bot.on('message', async (msg) => {
                 profilePhoto,
                 referralCode,
                 referrerChatId: null,
-                referralId: null, // Инициализируем referralId как null по умолчанию
-                balance: 0,       // Инициализируем баланс
-                donated: 0,       // Инициализируем пожертвованные средства
-                echaCoins: 0      // Инициализируем монеты ECHA
+                referrals: [],
+                balance: 0,
+                donated: 0,
+                echaCoins: 0,
+                farmingStartTime: null
             });
 
             if (referrerReferralCode) {
@@ -69,45 +70,49 @@ bot.on('message', async (msg) => {
 
                 if (referrer && referrer.chatId !== chatId) {
                     newUser.referrerChatId = referrer.chatId;
-                    newUser.referralId = referrer._id; // Устанавливаем referralId
-                    await bot.sendMessage(referrer.chatId, `Finally! @${username} joined your Web3 hub on EPIC!`);
+                    referrer.referrals.push(newUser.username); // Добавляем нового пользователя в рефералы реферера
+                    referrer.echaCoins += 10000;
+                    await referrer.save();
+                    await bot.sendMessage(referrer.chatId, `Новый пользователь @${username} присоединился по вашей ссылке и вы получили 10000 ECHA!`);
                 }
             }
 
             user = await newUser.save();
-        } else if (referrerReferralCode && !user.referralId) {
+        } else if (referrerReferralCode && !user.referrals.includes(username)) {
             const referrer = await User.findOne({ referralCode: referrerReferralCode });
 
             if (referrer && referrer.chatId !== chatId) {
                 user.referrerChatId = referrer.chatId;
-                user.referralId = referrer._id;
-                await bot.sendMessage(referrer.chatId, `Finally! @${username} joined your Web3 hub on EPIC!`);
+                referrer.referrals.push(user.username); // Добавляем пользователя в рефералы реферера
+                referrer.echaCoins += 10000;
+                await referrer.save();
+                await bot.sendMessage(referrer.chatId, `Новый пользователь @${username} присоединился по вашей ссылке и вы получили 10000 ECHA!`);
                 user = await user.save();
             }
         }
 
         const invitationMessage = user.referrerChatId
-            ? `Welcome to Epic Connect — your hub for connecting with Web3 builders, investors, and professionals!\n\n- Complete your profile and start receiving requests from other professionals\n- Earn Ē points by responding to requests\n- Use your points to reach out to other Web3 professionals`
-            : `Epic Connect is currently invite-only. Ask a friend for an invite to join.`;
+            ? `Добро пожаловать в EcoHero — Фонд помощи животным по всему миру`
+            : `EcoHero доступен только по приглашениям. Попросите друга пригласить вас.`;
 
         const replyMarkup = user.referrerChatId
             ? {
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: 'GO!', web_app: { url: webAppUrl } }],
-                        [{ text: 'Join Community!', url: communityAppUrl }]
+                        [{ text: 'Присоединиться к сообществу!', url: communityAppUrl }]
                     ]
                 }
             }
             : {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: 'Join Community!', url: communityAppUrl }]
+                        [{ text: 'Присоединиться к сообществу!', url: communityAppUrl }]
                     ]
                 }
             };
 
-        await bot.sendMessage(chatId, `Hey @${username}! ${invitationMessage}`, replyMarkup);
+        await bot.sendMessage(chatId, `Привет @${username}! ${invitationMessage}`, replyMarkup);
     }
 });
 
@@ -119,11 +124,9 @@ function createProfileImage(letter) {
     const canvas = createCanvas(100, 100);
     const ctx = canvas.getContext('2d');
 
-    // Background color
     ctx.fillStyle = '#4c657d';
     ctx.fillRect(0, 0, 100, 100);
 
-    // Text
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 50px Arial';
     ctx.textAlign = 'center';
